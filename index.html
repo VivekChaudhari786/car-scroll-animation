@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scroll Car Animation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --asphalt: #101215;
+    --lane: #1B1E24;
+    --papaya: #FF6A13;
+    --paint: #EDEFF2;
+    --display: "Unbounded", "Arial Black", Arial, sans-serif;
+    --body: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    box-sizing: border-box;
+  }
+  *, *::before, *::after { box-sizing: inherit; margin: 0; padding: 0; }
+  html { background: var(--asphalt); color-scheme: dark; }
+  body { background: var(--asphalt); color: var(--paint); font-family: var(--body); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+
+  .stage { position: relative; height: 420vh; }
+  .pin { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; background: var(--asphalt); }
+
+  /* Road */
+  .road { position: absolute; inset: 0; }
+  .road::before, .road::after {
+    content: ""; position: absolute; left: 0; right: 0; height: 2px; background: rgba(237,239,242,.16);
+  }
+  .road::before { top: 12%; }
+  .road::after { bottom: 8%; }
+  .lane {
+    position: absolute; left: 0; right: 0; top: 58%; height: 4px;
+    background-image: repeating-linear-gradient(90deg, rgba(237,239,242,.55) 0 64px, transparent 64px 128px);
+    background-size: 128px 100%;
+    will-change: background-position;
+  }
+  .grain { position: absolute; inset: 0; background: radial-gradient(120% 90% at 50% 40%, transparent 40%, rgba(0,0,0,.55)); pointer-events: none; }
+
+  /* Headline revealed by the car */
+  .title {
+    position: absolute; left: 0; right: 0; top: 36%; transform: translateY(-50%);
+    padding-inline: clamp(1rem, 3vw, 3rem);
+    display: flex; justify-content: center; flex-wrap: wrap; gap: 0 1.6vw;
+    font-family: var(--display); font-weight: 800; text-transform: uppercase;
+    font-size: clamp(2rem, 6.1vw, 6.5rem); line-height: 1.05;
+    letter-spacing: .34em; margin-right: -.34em; white-space: nowrap;
+    will-change: clip-path;
+    clip-path: inset(0 100% 0 0);
+  }
+  .title .word { display: inline-block; }
+  @media (max-width: 720px) {
+    .title { font-size: 11.5vw; letter-spacing: .22em; }
+  }
+
+  /* Car */
+  .car {
+    position: absolute; left: 0; top: 36%;
+    width: var(--car-w); aspect-ratio: 400 / 160; margin-top: calc(var(--car-w) * -0.2);
+    will-change: transform; --car-w: clamp(230px, 34vw, 560px);
+  }
+  .car svg { width: 100%; height: 100%; display: block; overflow: visible; }
+
+  /* Stats */
+  .stats {
+    position: absolute; left: 0; right: 0; bottom: calc(11% + env(safe-area-inset-bottom, 0px));
+    padding-inline: clamp(1rem, 4vw, 3rem);
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: clamp(.75rem, 2vw, 1.5rem);
+  }
+  .stat { border-top: 2px solid var(--papaya); padding-top: 1rem; opacity: 0; will-change: transform, opacity; }
+  .stat b { display: block; font-family: var(--display); font-weight: 600; font-size: clamp(2rem, 4.6vw, 4.2rem); letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1; }
+  .stat span { display: block; margin-top: .6rem; font-size: clamp(.8rem, 1.1vw, 1rem); line-height: 1.4; max-width: 22ch; opacity: .75; }
+  @media (max-width: 720px) {
+    .stats { grid-template-columns: repeat(2, 1fr); bottom: calc(6% + env(safe-area-inset-bottom, 0px)); row-gap: 1.25rem; }
+    .lane { top: 52%; }
+  }
+
+  /* HUD */
+  .speed {
+    position: absolute; left: clamp(1rem, 4vw, 3rem); top: calc(1.25rem + env(safe-area-inset-top, 0px));
+    font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: .5rem;
+  }
+  .speed b { font-family: var(--display); font-weight: 600; font-size: 1.6rem; min-width: 3ch; text-align: right; }
+  .speed span { font-size: .85rem; opacity: .6; }
+  .cue { position: absolute; right: clamp(1rem, 4vw, 3rem); top: calc(1.4rem + env(safe-area-inset-top, 0px)); font-size: .85rem; opacity: .6; transition: opacity .3s; }
+  .bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--papaya); transform: scaleX(0); transform-origin: left; }
+
+  .after { padding: clamp(4rem, 10vw, 8rem) clamp(1rem, 4vw, 3rem); background: var(--lane); }
+  .after p { max-width: 40ch; font-size: 1.1rem; line-height: 1.6; opacity: .8; }
+
+  :focus-visible { outline: 2px solid var(--papaya); outline-offset: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <section class="stage" id="stage">
+    <div class="pin">
+      <div class="road" aria-hidden="true"><div class="lane" id="lane"></div></div>
+
+      <h1 class="title" id="title" aria-label="Welcome Itzfizz">
+        <span class="word" aria-hidden="true">Welcome</span>
+        <span class="word" aria-hidden="true">Itzfizz</span>
+      </h1>
+
+      <div class="car" id="car" aria-hidden="true">
+        <svg viewBox="0 0 400 160">
+          <defs>
+            <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#FF8A3D"/><stop offset=".5" stop-color="#FF6A13"/><stop offset="1" stop-color="#C94A05"/>
+            </linearGradient>
+            <linearGradient id="beam" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stop-color="#FFF3DC" stop-opacity=".55"/><stop offset="1" stop-color="#FFF3DC" stop-opacity="0"/>
+            </linearGradient>
+            <filter id="blur"><feGaussianBlur stdDeviation="6"/></filter>
+          </defs>
+          <!-- shadow -->
+          <rect x="18" y="34" width="364" height="112" rx="52" fill="#000" opacity=".5" filter="url(#blur)"/>
+          <!-- headlight beams -->
+          <path d="M378 46 L 640 -10 L 640 60 Z" fill="url(#beam)"/>
+          <path d="M378 114 L 640 100 L 640 170 Z" fill="url(#beam)"/>
+          <!-- wheels -->
+          <g fill="#0A0B0D">
+            <rect x="286" y="10" width="64" height="26" rx="10"/><rect x="286" y="124" width="64" height="26" rx="10"/>
+            <rect x="62" y="8" width="70" height="28" rx="10"/><rect x="62" y="124" width="70" height="28" rx="10"/>
+          </g>
+          <!-- body -->
+          <path d="M14 80 C14 46 34 30 70 28 L 250 24 C 310 22 360 34 386 58 C 396 68 396 92 386 102 C 360 126 310 138 250 136 L 70 132 C 34 130 14 114 14 80 Z" fill="url(#body)"/>
+          <!-- side intakes -->
+          <path d="M150 30 L 210 26 L 200 44 L 146 46 Z" fill="#0A0B0D" opacity=".7"/>
+          <path d="M150 130 L 210 134 L 200 116 L 146 114 Z" fill="#0A0B0D" opacity=".7"/>
+          <!-- centre line -->
+          <path d="M60 80 L 372 80" stroke="#fff" stroke-opacity=".18" stroke-width="2"/>
+          <!-- cabin glass -->
+          <path d="M138 52 C 170 42 236 42 268 54 L 296 70 C 300 76 300 84 296 90 L 268 106 C 236 118 170 118 138 108 C 124 92 124 68 138 52 Z" fill="#12161C"/>
+          <path d="M150 58 C 180 50 228 50 256 60" stroke="#fff" stroke-opacity=".25" stroke-width="3" fill="none" stroke-linecap="round"/>
+          <!-- engine deck -->
+          <path d="M40 60 L 116 58 L 116 102 L 40 100 Z" fill="#0A0B0D" opacity=".55"/>
+          <path d="M50 66 H108 M50 76 H108 M50 86 H108 M50 96 H108" stroke="#FF6A13" stroke-opacity=".7" stroke-width="2"/>
+          <!-- mirrors -->
+          <path d="M282 22 L 300 14 L 306 26 L 288 34 Z M282 138 L 300 146 L 306 134 L 288 126 Z" fill="#E45A0B"/>
+          <!-- lights -->
+          <path d="M366 50 L 388 62 L 372 66 Z M366 110 L 388 98 L 372 94 Z" fill="#FFF6E5"/>
+          <rect x="12" y="52" width="6" height="16" rx="3" fill="#FF2A2A"/><rect x="12" y="92" width="6" height="16" rx="3" fill="#FF2A2A"/>
+        </svg>
+      </div>
+
+      <div class="speed" aria-hidden="true"><b id="kmh">0</b><span>km/h</span></div>
+      <div class="cue" id="cue" aria-hidden="true">Scroll to drive</div>
+
+      <div class="stats" id="stats">
+        <div class="stat" data-to="58"><b>0%</b><span>Increase in pick up point use</span></div>
+        <div class="stat" data-to="23"><b>0%</b><span>Decrease in customer phone calls</span></div>
+        <div class="stat" data-to="27"><b>0%</b><span>Increase in pick up point use</span></div>
+        <div class="stat" data-to="40"><b>0%</b><span>Decrease in customer phone calls</span></div>
+      </div>
+      <div class="bar" id="bar"></div>
+    </div>
+  </section>
+  <section class="after"><p>Same scroll position drives the car, the reveal, the road and the numbers, so everything stays in sync.</p></section>
+</main>
+
+<script>
+(() => {
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const $ = (id) => document.getElementById(id);
+  const stage = $("stage"), car = $("car"), title = $("title"), lane = $("lane");
+  const kmh = $("kmh"), cue = $("cue"), bar = $("bar");
+  const stats = [...document.querySelectorAll(".stat")];
+  const statNums = stats.map((s) => s.querySelector("b"));
+
+  const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const range = (t, a, b) => clamp((t - a) / (b - a));
+  const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+  const easeInOut = (t) => (t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+
+  let vw = innerWidth, vh = innerHeight, maxScroll = 1, carW = 300, titleBox = { l: 0, w: 1 };
+  function measure() {
+    vw = innerWidth; vh = innerHeight;
+    maxScroll = Math.max(1, stage.offsetHeight - vh);
+    carW = car.offsetWidth;
+    const r = title.getBoundingClientRect();
+    titleBox = { l: r.left, w: r.width };
+  }
+  measure();
+  addEventListener("resize", measure);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(measure);
+
+  let target = 0, current = 0, prev = 0, speed = 0;
+  const read = () => { target = clamp(-stage.getBoundingClientRect().top / maxScroll); };
+  addEventListener("scroll", read, { passive: true });
+  read();
+  if (reduce) current = target;
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const k = reduce ? 1 : 1 - Math.pow(1 - 0.09, dt * 60);
+    current += (target - current) * k;
+    if (Math.abs(target - current) < 0.00005) current = target;
+    const t = current;
+
+    // Drive phase: car crosses the whole viewport (0 → 0.72)
+    const drive = easeInOut(range(t, 0, 0.72));
+    const x = lerp(-carW * 1.05, vw + carW * 0.15, drive);
+    car.style.transform = `translate3d(${x.toFixed(1)}px,0,0)`;
+
+    // Text is uncovered behind the car's tail
+    const tail = x + carW * 0.06;
+    const revealPx = clamp(tail - titleBox.l, 0, titleBox.w);
+    const rightInset = Math.max(0, 100 - (revealPx / titleBox.w) * 100);
+    title.style.clipPath = `inset(-10% ${rightInset.toFixed(2)}% -10% -2%)`;
+
+    // Road lines rush past in the opposite direction
+    lane.style.backgroundPosition = `${(-t * 4200).toFixed(1)}px 0`;
+
+    // Speed readout from scroll velocity
+    const v = dt > 0 ? Math.abs(t - prev) / dt : 0; prev = t;
+    speed += (v - speed) * 0.15;
+    kmh.textContent = Math.min(320, Math.round(speed * 900));
+
+    // Stats: staggered rise + count up
+    stats.forEach((el, i) => {
+      const p = range(t, 0.7 + i * 0.05, 0.9 + i * 0.025);
+      const e = easeOut(p);
+      el.style.opacity = e.toFixed(3);
+      el.style.transform = `translate3d(0,${((1 - e) * 36).toFixed(1)}px,0)`;
+      statNums[i].textContent = Math.round(+el.dataset.to * e) + "%";
+    });
+
+    cue.style.opacity = 0.6 * (1 - range(t, 0.01, 0.06));
+    bar.style.transform = `scaleX(${t.toFixed(4)})`;
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
